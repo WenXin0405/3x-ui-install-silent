@@ -7,6 +7,7 @@
 - **无交互安装**: 全程无需用户输入，通过环境变量预配置
 - **灵活配置**: 支持自定义端口、用户名、密码、访问路径
 - **SSL 自动化**: 支持域名证书、IP证书、自定义证书三种方式
+- **网络优化**: 支持 BBR 加速、TCP Fast Open
 - **版本指定**: 可指定安装特定版本
 - **向后兼容**: 未配置的选项自动生成随机值
 
@@ -37,7 +38,17 @@
 
 > **端口说明**：
 > - `XUI_PORT` 是面板访问端口，与SSL证书无关，可以是任意端口
-> - `XUI_SSL_PORT` 是Let's Encrypt验证端口，仅申请证书时需要，默认80 |
+> - `XUI_SSL_PORT` 是Let's Encrypt验证端口，仅申请证书时需要，默认80
+
+### 网络优化配置
+
+| 变量名 | 说明 | 默认值 |
+|--------|------|--------|
+| `XUI_BBR` | 开启 BBR 拥塞控制算法 (`true` / `false`) | `false` |
+| `XUI_TCP_FASTOPEN` | 开启 TCP Fast Open (`true` / `false`) | `false` |
+
+> **BBR**: 需要 Linux 内核 4.9+，可显著提升网络传输速度
+> **TCP Fast Open**: 需要 Linux 内核 3.7+，可减少 TCP 连接建立延迟
 
 ### 高级配置
 
@@ -53,18 +64,14 @@
 自动生成所有配置，适合快速测试：
 
 ```bash
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | bash
 ```
 
 ### 2. 指定端口和凭据
 
 ```bash
-export XUI_PORT=8443
-export XUI_USERNAME=admin
-export XUI_PASSWORD=MySecurePass123
-export XUI_WEB_BASE_PATH=secretadmin
-
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_PORT=8443 XUI_USERNAME=admin XUI_PASSWORD=MySecurePass123 XUI_WEB_BASE_PATH=secretadmin bash
 ```
 
 ### 3. 使用域名 SSL 证书
@@ -72,14 +79,8 @@ curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.s
 Let's Encrypt 域名证书，有效期 90 天，自动续期：
 
 ```bash
-export XUI_PORT=443
-export XUI_USERNAME=admin
-export XUI_PASSWORD=MySecurePass123
-export XUI_SSL_TYPE=domain
-export XUI_SSL_DOMAIN=panel.example.com
-export XUI_SSL_PORT=80
-
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_PORT=443 XUI_USERNAME=admin XUI_PASSWORD=Pass123 XUI_SSL_TYPE=domain XUI_SSL_DOMAIN=panel.example.com bash
 ```
 
 ### 4. 使用 IP 证书
@@ -87,59 +88,51 @@ curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.s
 Let's Encrypt IP 短期证书，有效期约 6 天，自动续期：
 
 ```bash
-export XUI_PORT=443
-export XUI_SSL_TYPE=ip
-export XUI_SSL_PORT=80
-
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_PORT=443 XUI_USERNAME=admin XUI_PASSWORD=Pass123 XUI_SSL_TYPE=ip bash
 ```
 
-包含 IPv6 地址：
+### 5. 完整配置（推荐）
+
+开启所有优化选项：
 
 ```bash
-export XUI_SSL_TYPE=ip
-export XUI_SSL_IPV6=2001:db8::1
-
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_PORT=8878 \
+  XUI_USERNAME=admin \
+  XUI_PASSWORD=SecurePass123 \
+  XUI_WEB_BASE_PATH=secret \
+  XUI_SSL_TYPE=ip \
+  XUI_BBR=true \
+  XUI_TCP_FASTOPEN=true \
+  bash
 ```
 
-### 5. 使用自定义证书
+### 6. 使用自定义证书
 
 适用于已有证书的场景：
 
 ```bash
-export XUI_SSL_TYPE=custom
-export XUI_SSL_CERT_PATH=/etc/ssl/certs/fullchain.pem
-export XUI_SSL_KEY_PATH=/etc/ssl/private/privkey.pem
-export XUI_SSL_DOMAIN=panel.example.com
-
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_SSL_TYPE=custom \
+  XUI_SSL_CERT_PATH=/etc/ssl/certs/fullchain.pem \
+  XUI_SSL_KEY_PATH=/etc/ssl/private/privkey.pem \
+  XUI_SSL_DOMAIN=panel.example.com \
+  bash
 ```
 
-### 6. 指定版本安装
+### 7. 指定版本安装
 
 ```bash
-export XUI_VERSION=v2.3.5
-
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
-```
-
-### 7. 单行命令安装
-
-适合 CI/CD 或脚本调用：
-
-```bash
-XUI_PORT=8443 XUI_USERNAME=admin XUI_PASSWORD=Pass123 XUI_SSL_TYPE=ip \
-  bash -c "$(curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh)"
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_VERSION=v2.3.5 bash
 ```
 
 ### 8. 跳过 SSL 配置
 
 ```bash
-export XUI_PORT=8080
-export XUI_SKIP_SSL=true
-
-curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | bash
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_PORT=8080 XUI_SKIP_SSL=true bash
 ```
 
 ## Docker 集成示例
@@ -153,6 +146,8 @@ ENV XUI_PORT=443
 ENV XUI_USERNAME=admin
 ENV XUI_PASSWORD=admin123
 ENV XUI_SSL_TYPE=none
+ENV XUI_BBR=true
+ENV XUI_TCP_FASTOPEN=true
 
 COPY install-silent.sh /tmp/
 RUN chmod +x /tmp/install-silent.sh && /tmp/install-silent.sh
@@ -172,14 +167,18 @@ CMD ["x-ui", "start"]
     xui_username: admin
     xui_password: "{{ vault_xui_password }}"
     xui_ssl_type: ip
+    xui_bbr: true
+    xui_tcp_fastopen: true
   tasks:
     - name: Download and run silent installer
       shell: |
-        curl -Ls https://raw.githubusercontent.com/your-repo/3x-ui/main/install-silent.sh | \
+        curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
         XUI_PORT={{ xui_port }} \
         XUI_USERNAME={{ xui_username }} \
         XUI_PASSWORD={{ xui_password }} \
         XUI_SSL_TYPE={{ xui_ssl_type }} \
+        XUI_BBR={{ xui_bbr }} \
+        XUI_TCP_FASTOPEN={{ xui_tcp_fastopen }} \
         bash
 ```
 
@@ -199,6 +198,54 @@ CMD ["x-ui", "start"]
 | `x-ui update` | 更新版本 |
 | `x-ui uninstall` | 卸载 |
 
+## 证书管理
+
+### 查看证书状态
+
+```bash
+# 查看已安装的证书列表
+~/.acme.sh/acme.sh --list
+
+# 查看证书详情
+~/.acme.sh/acme.sh --info -d <域名或IP>
+
+# 查看定时任务
+crontab -l
+```
+
+### 手动续签证书
+
+```bash
+# 测试续签（dry-run）
+~/.acme.sh/acme.sh --renew -d <域名或IP> --dry-run
+
+# 强制续签
+~/.acme.sh/acme.sh --renew -d <域名或IP> --force
+```
+
+### 证书文件位置
+
+| 类型 | 路径 |
+|------|------|
+| 域名证书 | `/root/cert/<域名>/` |
+| IP证书 | `/root/cert/ip/` |
+
+## 网络优化验证
+
+### 检查 BBR 状态
+
+```bash
+sysctl net.ipv4.tcp_congestion_control
+# 输出: net.ipv4.tcp_congestion_control = bbr
+```
+
+### 检查 TCP Fast Open 状态
+
+```bash
+cat /proc/sys/net/ipv4/tcp_fastopen
+# 输出: 3 (客户端+服务端已启用)
+```
+
 ## 与原脚本对比
 
 | 特性 | 原版 install.sh | install-silent.sh |
@@ -206,6 +253,8 @@ CMD ["x-ui", "start"]
 | 安装方式 | 交互式 | 非交互式 |
 | 配置方式 | 运行时输入 | 环境变量预设 |
 | SSL 配置 | 必须交互选择 | 可预设或跳过 |
+| BBR 加速 | 不支持 | 支持 |
+| TCP Fast Open | 不支持 | 支持 |
 | 凭据生成 | 可选择自定义或随机 | 未设置则自动随机 |
 | 适用场景 | 手动安装 | 自动化部署、CI/CD |
 | 输出信息 | 详细交互提示 | 简洁状态输出 |
@@ -219,6 +268,7 @@ CMD ["x-ui", "start"]
    - IP 证书需要端口 80 可从公网访问
    - 自定义证书需确保证书文件存在且可读
 4. **root 权限**: 必须以 root 用户运行
+5. **内核版本**: BBR 需要 4.9+，TCP Fast Open 需要 3.7+
 
 ## 故障排除
 
@@ -250,7 +300,8 @@ journalctl -u x-ui -f
 
 ```bash
 # 重新运行安装脚本会重置配置
-XUI_PORT=新端口 XUI_USERNAME=新用户名 XUI_PASSWORD=新密码 bash install-silent.sh
+curl -Ls https://raw.githubusercontent.com/WenXin0405/3x-ui-install-silent/main/install-silent.sh | \
+  XUI_PORT=新端口 XUI_USERNAME=新用户名 XUI_PASSWORD=新密码 bash
 ```
 
 ## 许可证

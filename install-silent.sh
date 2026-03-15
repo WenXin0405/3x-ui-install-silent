@@ -29,6 +29,10 @@ XUI_SKIP_SSL="${XUI_SKIP_SSL:=false}"
 
 XUI_VERSION="${XUI_VERSION:=}"
 
+XUI_BBR="${XUI_BBR:=false}"
+
+XUI_TCP_FASTOPEN="${XUI_TCP_FASTOPEN:=false}"
+
 [[ $EUID -ne 0 ]] && echo -e "${red}Fatal error: ${plain} Please run this script with root privilege \n " && exit 1
 
 if [[ -f /etc/os-release ]]; then
@@ -116,6 +120,91 @@ install_base() {
             apt-get update && apt-get install -y -q curl tar tzdata socat ca-certificates
         ;;
     esac
+}
+
+enable_bbr() {
+    echo -e "${green}Checking BBR status...${plain}"
+    
+    local bbr_status=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ')
+    
+    if [[ "$bbr_status" == "bbr" ]]; then
+        echo -e "${green}BBR is already enabled!${plain}"
+        return 0
+    fi
+    
+    echo -e "${green}Enabling BBR acceleration...${plain}"
+    
+    local kernel_version=$(uname -r | cut -d'-' -f1)
+    local kernel_major=$(echo "$kernel_version" | cut -d'.' -f1)
+    local kernel_minor=$(echo "$kernel_version" | cut -d'.' -f2)
+    
+    if [[ "$kernel_major" -lt 4 ]] || [[ "$kernel_major" -eq 4 && "$kernel_minor" -lt 9 ]]; then
+        echo -e "${yellow}Kernel version $kernel_version does not support native BBR (requires 4.9+)${plain}"
+        echo -e "${yellow}Consider upgrading your kernel manually.${plain}"
+        return 1
+    fi
+    
+    if ! grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf 2>/dev/null; then
+        echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+    fi
+    
+    if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf 2>/dev/null; then
+        echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+    fi
+    
+    sysctl -p >/dev/null 2>&1
+    
+    local new_bbr_status=$(sysctl net.ipv4.tcp_congestion_control 2>/dev/null | awk -F'=' '{print $2}' | tr -d ' ')
+    
+    if [[ "$new_bbr_status" == "bbr" ]]; then
+        echo -e "${green}BBR enabled successfully!${plain}"
+        echo -e "${green}Kernel version: $kernel_version${plain}"
+        return 0
+    else
+        echo -e "${red}Failed to enable BBR${plain}"
+        return 1
+    fi
+}
+
+enable_tcp_fastopen() {
+    echo -e "${green}Checking TCP Fast Open status...${plain}"
+    
+    local tfo_status=$(cat /proc/sys/net/ipv4/tcp_fastopen 2>/dev/null)
+    
+    if [[ "$tfo_status" == "3" ]]; then
+        echo -e "${green}TCP Fast Open is already enabled (client + server)!${plain}"
+        return 0
+    fi
+    
+    echo -e "${green}Enabling TCP Fast Open...${plain}"
+    
+    local kernel_version=$(uname -r | cut -d'-' -f1)
+    local kernel_major=$(echo "$kernel_version" | cut -d'.' -f1)
+    local kernel_minor=$(echo "$kernel_version" | cut -d'.' -f2)
+    
+    if [[ "$kernel_major" -lt 3 ]] || [[ "$kernel_major" -eq 3 && "$kernel_minor" -lt 7 ]]; then
+        echo -e "${yellow}Kernel version $kernel_version does not support TCP Fast Open (requires 3.7+)${plain}"
+        return 1
+    fi
+    
+    echo 3 > /proc/sys/net/ipv4/tcp_fastopen
+    
+    if ! grep -q "net.ipv4.tcp_fastopen" /etc/sysctl.conf 2>/dev/null; then
+        echo "net.ipv4.tcp_fastopen = 3" >> /etc/sysctl.conf
+    else
+        sed -i 's/net.ipv4.tcp_fastopen.*/net.ipv4.tcp_fastopen = 3/' /etc/sysctl.conf
+    fi
+    
+    local new_tfo_status=$(cat /proc/sys/net/ipv4/tcp_fastopen 2>/dev/null)
+    
+    if [[ "$new_tfo_status" == "3" ]]; then
+        echo -e "${green}TCP Fast Open enabled successfully!${plain}"
+        echo -e "${green}Mode: Client + Server (value=3)${plain}"
+        return 0
+    else
+        echo -e "${red}Failed to enable TCP Fast Open${plain}"
+        return 1
+    fi
 }
 
 gen_random_string() {
@@ -686,3 +775,13 @@ install_x-ui() {
 echo -e "${green}Running silent installation...${plain}"
 install_base
 install_x-ui $1
+
+if [[ "${XUI_BBR}" == "true" ]]; then
+    echo ""
+    enable_bbr
+fi
+
+if [[ "${XUI_TCP_FASTOPEN}" == "true" ]]; then
+    echo ""
+    enable_tcp_fastopen
+fi
